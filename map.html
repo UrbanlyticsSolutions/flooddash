@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flood Data Dashboard</title>
+    <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+    <link href="https://api.tiles.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        /* Previous styles remain the same */
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: all 0.3s ease;
+        }
+
+        #map-section {
+            position: relative;
+            height: 70vh;
+            transition: all 0.3s ease;
+        }
+
+        #map { 
+            width: 100%;
+            height: 100%;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .maximized {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 1000;
+        }
+
+        .dashboard {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* Ensure two columns of equal width */
+    gap: 20px;
+    padding: 20px;
+    background: #f0f2f5;
+}
+
+.chart-container {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center; /* Center the chart horizontally */
+    height: 400px; /* Set a fixed height to avoid stretching */
+    max-width: 100%; /* Ensure it fits within the grid */
+}
+
+canvas {
+    width: auto !important; /* Avoid forcing the chart to take full width */
+    max-width: 100%; /* Ensure the chart does not overflow */
+    height: auto !important; /* Maintain the aspect ratio */
+}
+
+.chart-title {
+    text-align: center;
+    font-size: 1.25em;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+
+        /* New legend styles */
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            z-index: 1;
+            max-width: 200px;
+        }
+
+        .legend h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,0.2);
+        }
+
+        .legend-text {
+            font-size: 12px;
+            color: #2c3e50;
+        }
+
+        /* Rest of the previous styles remain the same */
+        .map-overlay {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1;
+        }
+
+        button {
+            padding: 8px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 3px;
+            background: #0078A8;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #005980;
+        }
+
+        #maximize-btn {
+            background: #2c3e50;
+        }
+
+        #maximize-btn:hover {
+            background: #34495e;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="map-section">
+            <div id="map"></div>
+            <!-- New Legend -->
+            <div class="legend">
+                <h3>Flood Intensity Scale</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #313695"></div>
+                    <div class="legend-text">1-3: Minor Flooding<br>Surface water, minimal impact</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #74add1"></div>
+                    <div class="legend-text">4-6: Moderate Flooding<br>Property damage, some evacuations</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #d73027"></div>
+                    <div class="legend-text">7-10: Severe Flooding<br>Major impact, emergency response</div>
+                </div>
+            </div>
+            <div class="map-overlay">
+                <button onclick="toggleLayer('markers')">Show Markers</button>
+                <button onclick="toggleLayer('heatmap')">Show Heatmap</button>
+            </div>
+            <div class="map-controls">
+                <button id="maximize-btn" onclick="toggleMaximize()">
+                    <span id="maximize-text">⛶ Maximize</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="dashboard" id="charts-section">
+            <div class="chart-container">
+                <h2 class="chart-title">Intensity Distribution</h2>
+                <canvas id="intensityChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2 class="chart-title">Distribution by City</h2>
+                <canvas id="cityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZXJpY3podTE5IiwiYSI6ImNsc2k1OGh5YTJkNHYyanF1dTFheTh4MXAifQ.uFPaTHtGZLIH-x-926nChg';
+        
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [-123.1207, 49.2827],
+            zoom: 11
+        });
+
+        let currentLayer = 'markers';
+        let floodData = null;
+        let isMaximized = false;
+        let intensityChart, cityChart;
+
+        function extractCityFromLocation(location) {
+            if (!location) return 'Unknown';
+            
+            // Split by comma and get the last part as city
+            const parts = location.split(',');
+            if (parts.length > 0) {
+                return parts[parts.length - 1].trim();
+            }
+            return location.trim();
+        }
+        function initializeCharts(data) {
+            const intensityCount = Array(10).fill(0);
+            const cityCount = {};
+
+            // First pass: Count all cities
+            data.features.forEach(feature => {
+                const props = feature.properties;
+                intensityCount[props.intensity - 1]++;
+                
+                const city = props.city || extractCityFromLocation(props.location) || 'Unknown';
+                cityCount[city] = (cityCount[city] || 0) + 1;
+            });
+
+            // Calculate total for percentage
+            const total = Object.values(cityCount).reduce((a, b) => a + b, 0);
+            
+            // Separate cities into main and others based on 1% threshold
+            const mainCities = {};
+            let othersCount = 0;
+
+            Object.entries(cityCount)
+                .sort((a, b) => b[1] - a[1]) // Sort by count
+                .forEach(([city, count]) => {
+                    const percentage = (count / total) * 100;
+                    if (percentage >= 1 && city !== 'Unknown') {
+                        mainCities[city] = count;
+                    } else {
+                        othersCount += count;
+                    }
+                });
+
+            // Add Others and Unknown categories if they exist
+            if (othersCount > 0) {
+                mainCities['Others'] = othersCount;
+            }
+            if (cityCount['Unknown']) {
+                mainCities['Unknown'] = cityCount['Unknown'];
+            }
+
+            // Intensity Chart remains the same
+            intensityChart = new Chart(document.getElementById('intensityChart'), {
+                type: 'bar',
+                data: {
+                    labels: Array.from({length: 10}, (_, i) => `Level ${i + 1}`),
+                    datasets: [{
+                        label: 'Number of Incidents',
+                        data: intensityCount,
+                        backgroundColor: '#74add1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // Modified City Distribution Chart
+            cityChart = new Chart(document.getElementById('cityChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(mainCities),
+                    datasets: [{
+                        data: Object.values(mainCities),
+                        backgroundColor: [
+                            '#313695', '#4575b4', '#74add1', 
+                            '#abd9e9', '#e0f3f8', '#fee090',
+                            '#fdae61', '#f46d43', '#d73027',
+                            '#a50026', '#cccccc' // Gray for Others/Unknown
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+                
+
+        function toggleMaximize() {
+            const mapSection = document.getElementById('map-section');
+            const chartsSection = document.getElementById('charts-section');
+            const maximizeText = document.getElementById('maximize-text');
+
+            isMaximized = !isMaximized;
+            
+            if (isMaximized) {
+                mapSection.classList.add('maximized');
+                chartsSection.classList.add('hidden');
+                maximizeText.textContent = '⛶ Minimize';
+            } else {
+                mapSection.classList.remove('maximized');
+                chartsSection.classList.remove('hidden');
+                maximizeText.textContent = '⛶ Maximize';
+            }
+
+            map.resize();
+        }
+
+        map.on('load', () => {
+            // Add a source for flood data
+            map.addSource('flood-data', {
+                type: 'geojson',
+                data: {
+                    type: "FeatureCollection",
+                    features: []
+                }
+            });
+
+            // Add heatmap layer
+            map.addLayer({
+                'id': 'flood-heat',
+                'type': 'heatmap',
+                'source': 'flood-data',
+                'paint': {
+                    'heatmap-weight': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'intensity'],
+                        1, 0,
+                        10, 1
+                    ],
+                    'heatmap-intensity': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        0, 1,
+                        15, 3
+                    ],
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(49,54,149,0)',
+                        0.2, '#313695',
+                        0.4, '#74add1',
+                        0.6, '#fee090',
+                        0.8, '#f46d43',
+                        1, '#d73027'
+                    ],
+                    'heatmap-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        0, 2,
+                        25, 50
+                    ],
+                    'heatmap-opacity': 0.8
+                },
+                'layout': {
+                    'visibility': 'none'
+                }
+            });
+
+            // Add circle marker layer
+            map.addLayer({
+                'id': 'flood-points',
+                'type': 'circle',
+                'source': 'flood-data',
+                'paint': {
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'intensity'],
+                        1, 8,
+                        10, 24
+                    ],
+                    'circle-color': [
+                        'step',
+                        ['get', 'intensity'],
+                        '#313695',
+                        4, '#74add1',
+                        7, '#d73027'
+                    ],
+                    'circle-opacity': 0.8,
+                    'circle-stroke-width': 1,
+                    'circle-stroke-color': '#000'
+                },
+                'layout': {
+                    'visibility': 'visible'
+                }
+            });
+
+            // Add popup on click
+            map.on('click', 'flood-points', (e) => {
+                if (!e.features.length) return;
+                
+                const properties = e.features[0].properties;
+                const city = properties.city || 
+                            extractCityFromLocation(properties.location) || 
+                            'Unknown';
+                const description = `
+                    <div class="popup-content">
+                        <h3>${properties.title || 'Unknown Location'}</h3>
+                        <p><strong>City:</strong> ${city}</p>
+                        <p><strong>Full Location:</strong> ${properties.location || 'N/A'}</p>
+                        <p><strong>Intensity:</strong> ${properties.intensity || 'N/A'}</p>
+                        <p><strong>Description:</strong> ${properties.description || 'No description available'}</p>
+                        <p><strong>Date:</strong> ${properties.date || 'N/A'}</p>
+                    </div>
+                `;
+
+                new mapboxgl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(description)
+                    .addTo(map);
+            });
+
+            // Change cursor on hover
+            map.on('mouseenter', 'flood-points', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            map.on('mouseleave', 'flood-points', () => {
+                map.getCanvas().style.cursor = '';
+            });
+
+            // Fetch and load the GeoJSON data
+            fetch('flood_intensity.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    floodData = data;
+                    map.getSource('flood-data').setData(data);
+                    initializeCharts(data);
+                })
+                .catch(console.error);
+        });
+
+        function toggleLayer(layerType) {
+            if (currentLayer === layerType) return;
+            
+            if (layerType === 'heatmap') {
+                map.setLayoutProperty('flood-points', 'visibility', 'none');
+                map.setLayoutProperty('flood-heat', 'visibility', 'visible');
+            } else {
+                map.setLayoutProperty('flood-points', 'visibility', 'visible');
+                map.setLayoutProperty('flood-heat', 'visibility', 'none');
+            }
+            
+            currentLayer = layerType;
+        }
+    </script>
+</body>
+</html>
