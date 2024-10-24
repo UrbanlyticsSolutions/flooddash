@@ -361,65 +361,115 @@
         }
 
         function initializeCharts(data) {
-            const intensityCount = Array(10).fill(0);
-            const cityCount = {};
+    const intensityCount = Array(10).fill(0);
+    const cityCount = {};
 
-            data.features.forEach(feature => {
-                const props = feature.properties;
-                intensityCount[props.intensity - 1]++;
-                
-                const city = props.city || extractCityFromLocation(props.location) || 'Unknown';
-                cityCount[city] = (cityCount[city] || 0) + 1;
-            });
+    // Count occurrences
+    data.features.forEach(feature => {
+        const props = feature.properties;
+        intensityCount[props.intensity - 1]++;
+        
+        const city = props.city || extractCityFromLocation(props.location) || 'Unknown';
+        cityCount[city] = (cityCount[city] || 0) + 1;
+    });
 
-            if (intensityChart) intensityChart.destroy();
-            if (cityChart) cityChart.destroy();
+    // Calculate total for percentage calculation
+    const total = Object.values(cityCount).reduce((a, b) => a + b, 0);
+    
+    // Separate cities into main and others based on 0.1% threshold
+    const mainCities = {};
+    let othersCount = 0;
 
-            const ctx1 = document.getElementById('intensityChart').getContext('2d');
-            const ctx2 = document.getElementById('cityChart').getContext('2d');
+    Object.entries(cityCount)
+        .sort((a, b) => b[1] - a[1]) // Sort by count in descending order
+        .forEach(([city, count]) => {
+            const percentage = (count / total) * 100;
+            if (percentage >= 0.2) {  // Changed threshold to 0.1%
+                mainCities[city] = count;
+            } else {
+                othersCount += count;
+            }
+        });
 
-            intensityChart = new Chart(ctx1, {
-                type: 'bar',
-                data: {
-                    labels: Array.from({length: 10}, (_, i) => `Level ${i + 1}`),
-                    datasets: [{
-                        label: 'Number of Incidents',
-                        data: intensityCount,
-                        backgroundColor: '#74add1'
-                    }]
+    // Add Others category if there are any small percentages
+    if (othersCount > 0) {
+        mainCities['Others'] = othersCount;
+    }
+
+    // Cleanup existing charts if they exist
+    if (intensityChart) intensityChart.destroy();
+    if (cityChart) cityChart.destroy();
+
+    const ctx1 = document.getElementById('intensityChart').getContext('2d');
+    const ctx2 = document.getElementById('cityChart').getContext('2d');
+
+    // Bar chart for intensity remains the same
+    intensityChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+            labels: Array.from({length: 10}, (_, i) => `Level ${i + 1}`),
+            datasets: [{
+                label: 'Number of Incidents',
+                data: intensityCount,
+                backgroundColor: '#74add1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Pie chart for city distribution with percentage labels
+    cityChart = new Chart(ctx2, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(mainCities),
+            datasets: [{
+                data: Object.values(mainCities),
+                backgroundColor: [
+                    '#313695', '#4575b4', '#74add1', 
+                    '#abd9e9', '#e0f3f8', '#fee090',
+                    '#fdae61', '#f46d43', '#d73027',
+                    '#a50026', '#cccccc' // Last color for "Others"
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        font: {
+                            size: 11
+                        }
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const percentage = ((value / total) * 100).toFixed(2); // Changed to 2 decimal places for more precision at 0.1%
+                            return `${context.label}: ${value} (${percentage}%)`;
                         }
                     }
                 }
-            });
-
-            cityChart = new Chart(ctx2, {
-                type: 'pie',
-                data: {
-                    labels: Object.keys(cityCount),
-                    datasets: [{
-                        data: Object.values(cityCount),
-                        backgroundColor: [
-                            '#313695', '#4575b4', '#74add1', 
-                            '#abd9e9', '#e0f3f8', '#fee090'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
-
-            hideLoader();
+            }
         }
+    });
 
+    hideLoader();
+}
+
+        
         function setupMapLayers() {
             map.addSource('flood-data', {
                 type: 'geojson',
