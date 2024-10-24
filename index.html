@@ -328,31 +328,32 @@
         }
 
         function initializeMap() {
-            try {
-                mapboxgl.accessToken = 'pk.eyJ1IjoiZXJpY3podTE5IiwiYSI6ImNsc2k1OGh5YTJkNHYyanF1dTFheTh4MXAifQ.uFPaTHtGZLIH-x-926nChg';
-                
-                map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/dark-v11',
-                    center: [-123.1207, 49.2827],
-                    zoom: 11
-                });
+    try {
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZXJpY3podTE5IiwiYSI6ImNsc2k1OGh5YTJkNHYyanF1dTFheTh4MXAifQ.uFPaTHtGZLIH-x-926nChg';
+        
+        map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [-123.1207, 49.2827],
+            zoom: 11
+        });
 
-                map.on('load', () => {
-                    setupMapLayers();
-                    setupMapInteractions();
-                    loadFloodData();
-                });
+        map.on('load', () => {
+            setupMapLayers();
+            setupMapInteractions();
+            loadFloodData();
+        });
 
-                map.on('error', (e) => {
-                    console.error('Map error:', e);
-                    showError('Error loading map. Please try again later.');
-                });
-            } catch (error) {
-                console.error('Map initialization error:', error);
-                showError('Error initializing map. Please check your connection.');
-            }
-        }
+        map.on('error', (e) => {
+            console.error('Map error:', e);
+            showError('Error loading map. Please try again later.');
+        });
+    } catch (error) {
+        console.error('Map initialization error:', error);
+        showError('Error initializing map. Please check your connection.');
+    }
+}
+
 
         function extractCityFromLocation(location) {
             if (!location) return 'Unknown';
@@ -468,87 +469,95 @@
 
     hideLoader();
 }
+function setupMapLayers() {
+    // Check if source already exists
+    if (!map.getSource('flood-data')) {
+        map.addSource('flood-data', {
+            type: 'geojson',
+            data: {
+                type: "FeatureCollection",
+                features: []
+            }
+        });
+    }
 
-        
-        function setupMapLayers() {
-            map.addSource('flood-data', {
-                type: 'geojson',
-                data: sampleFloodData
-            });
+    // Only add layers if they don't exist
+    if (!map.getLayer('flood-heat')) {
+        map.addLayer({
+            'id': 'flood-heat',
+            'type': 'heatmap',
+            'source': 'flood-data',
+            'paint': {
+                'heatmap-weight': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'intensity'],
+                    1, 0,
+                    10, 1
+                ],
+                'heatmap-intensity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    0, 1,
+                    15, 3
+                ],
+                'heatmap-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['heatmap-density'],
+                    0, 'rgba(49,54,149,0)',
+                    0.2, '#313695',
+                    0.4, '#74add1',
+                    0.6, '#fee090',
+                    0.8, '#f46d43',
+                    1, '#d73027'
+                ],
+                'heatmap-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    0, 2,
+                    25, 50
+                ],
+                'heatmap-opacity': 0.8
+            },
+            'layout': {
+                'visibility': 'none'
+            }
+        });
+    }
 
-            map.addLayer({
-                'id': 'flood-heat',
-                'type': 'heatmap',
-                'source': 'flood-data',
-                'paint': {
-                    'heatmap-weight': [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'intensity'],
-                        1, 0,
-                        10, 1
-                    ],
-                    'heatmap-intensity': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0, 1,
-                        15, 3
-                    ],
-                    'heatmap-color': [
-                        'interpolate',
-                        ['linear'],
-                        ['heatmap-density'],
-                        0, 'rgba(49,54,149,0)',
-                        0.2, '#313695',
-                        0.4, '#74add1',
-                        0.6, '#fee090',
-                        0.8, '#f46d43',
-                        1, '#d73027'
-                    ],
-                    'heatmap-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0, 2,
-                        25, 50
-                    ],
-                    'heatmap-opacity': 0.8
-                },
-                'layout': {
-                    'visibility': 'none'
-                }
-            });
-
-            map.addLayer({
-                'id': 'flood-points',
-                'type': 'circle',
-                'source': 'flood-data',
-                'paint': {
-                    'circle-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'intensity'],
-                        1, 8,
-                        10, 24
-                    ],
-                    'circle-color': [
-                        'step',
-                        ['get', 'intensity'],
-                        '#313695',
-                        4, '#74add1',
-                        7, '#d73027'
-                    ],
-                    'circle-opacity': 0.8,
-                    'circle-stroke-width': 1,
-                    'circle-stroke-color': '#000'
-                },
-                'layout': {
-                    'visibility': 'visible'
-                }
-            });
-        }
-
+    if (!map.getLayer('flood-points')) {
+        map.addLayer({
+            'id': 'flood-points',
+            'type': 'circle',
+            'source': 'flood-data',
+            'paint': {
+                'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'intensity'],
+                    1, 8,
+                    10, 24
+                ],
+                'circle-color': [
+                    'step',
+                    ['get', 'intensity'],
+                    '#313695',
+                    4, '#74add1',
+                    7, '#d73027'
+                ],
+                'circle-opacity': 0.8,
+                'circle-stroke-width': 1,
+                'circle-stroke-color': '#000'
+            },
+            'layout': {
+                'visibility': 'visible'
+            }
+        });
+    }
+}
         function setupMapInteractions() {
             map.on('click', 'flood-points', (e) => {
                 if (!e.features.length) return;
@@ -676,6 +685,187 @@
             if (intensityChart) intensityChart.resize();
             if (cityChart) cityChart.resize();
         });
+
+
+        
+function addFilterControls() {
+    const filterDiv = document.createElement('div');
+    filterDiv.className = 'filter-controls';
+    filterDiv.innerHTML = `
+        <div class="filter-box">
+            <input type="text" id="description-filter" placeholder="Filter by description..." />
+            <button id="clear-filter" class="control-button">Clear</button>
+        </div>
+    `;
+    
+    document.querySelector('.map-controls').insertAdjacentElement('afterend', filterDiv);
+    
+    // Add event listeners
+    const filterInput = document.getElementById('description-filter');
+    const clearButton = document.getElementById('clear-filter');
+    
+    filterInput.addEventListener('input', debounce(function(e) {
+        applyFilter(e.target.value);
+    }, 300));
+    
+    clearButton.addEventListener('click', function() {
+        filterInput.value = '';
+        applyFilter('');
+    });
+}
+
+// Add this CSS:
+const filterStyles = document.createElement('style');
+filterStyles.textContent = `
+    .filter-controls {
+        position: absolute;
+        top: 60px;
+        right: 10px;
+        z-index: 1;
+    }
+
+    .filter-box {
+        display: flex;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 8px;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        backdrop-filter: blur(4px);
+    }
+
+    #description-filter {
+        padding: 6px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 200px;
+    }
+
+    #description-filter:focus {
+        outline: none;
+        border-color: #74add1;
+        box-shadow: 0 0 0 2px rgba(116, 173, 209, 0.2);
+    }
+`;
+document.head.appendChild(filterStyles);
+
+// Add utility function for debouncing:
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Update the applyFilter function as well
+function applyFilter(searchText) {
+    const searchLower = searchText.toLowerCase();
+    
+    // Create a filtered dataset
+    const filteredData = {
+        type: "FeatureCollection",
+        features: floodData.features.filter(feature => {
+            const description = (feature.properties.description || '').toLowerCase();
+            return description.includes(searchLower);
+        })
+    };
+    
+    // Update map data
+    if (map.getSource('flood-data')) {
+        map.getSource('flood-data').setData(filteredData);
+    }
+    
+    // Update charts with filtered data
+    initializeCharts(filteredData);
+    
+    // Show/hide empty state message
+    const emptyMessage = document.getElementById('empty-state-message');
+    if (filteredData.features.length === 0) {
+        if (!emptyMessage) {
+            const msg = document.createElement('div');
+            msg.id = 'empty-state-message';
+            msg.className = 'empty-state';
+            msg.textContent = 'No matching flood events found';
+            document.getElementById('map').appendChild(msg);
+        }
+    } else if (emptyMessage) {
+        emptyMessage.remove();
+    }
+}
+// Add empty state styles:
+const emptyStateStyles = document.createElement('style');
+emptyStateStyles.textContent = `
+    .empty-state {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 255, 255, 0.9);
+        padding: 15px 25px;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #666;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        backdrop-filter: blur(4px);
+        z-index: 1;
+    }
+`;
+document.head.appendChild(emptyStateStyles);
+
+// Modify the initialization code to add filter controls:
+document.addEventListener('DOMContentLoaded', function() {
+    showLoader();
+    initializeMap();
+    addFilterControls();
+});
+
+// Update loadFloodData to store the original data:
+function loadFloodData() {
+    fetch('flood_intensity.geojson')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data || !data.features) {
+                throw new Error('Invalid GeoJSON format');
+            }
+            // Store the original data
+            floodData = data;
+            
+            // Update the map source with new data
+            if (map.getSource('flood-data')) {
+                map.getSource('flood-data').setData(data);
+            }
+            
+            // Initialize charts with the new data
+            initializeCharts(data);
+            
+            hideLoader();
+        })
+        .catch(error => {
+            console.error('Error loading flood data:', error);
+            showError('Error loading GeoJSON file. Make sure flood_intensity.geojson exists in the same folder.');
+            
+            // Initialize with empty data if load fails
+            if (map.getSource('flood-data')) {
+                map.getSource('flood-data').setData({
+                    "type": "FeatureCollection",
+                    "features": []
+                });
+            }
+            
+            hideLoader();
+        });
+}
     </script>
 </body>
 </html>
